@@ -482,7 +482,7 @@ LANDING_HTML_TEMPLATE = """
 
             <div class="mt-8 text-xs text-gray-500 border-t border-gray-800/80 pt-6 space-y-2 text-left bg-gray-950/40 p-4 rounded-xl">
                 <div class="font-bold text-gray-400">💡 입력 가능 URL 예시:</div>
-                <p>• <span class="text-gray-400">특정 보스 전체 트라이</span>: https://ko.warcraftlogs.com/reports/aT2hxt1CgB8fPN6p?boss=3181</p>
+                <p>• <span class="text-gray-400">특정 보스 전체 트라이</span>: https://ko.warcraftlogs.com/reports/aT2hxt1CgB8fPN6p?type=summary&boss=3181&difficulty=5&wipes=1</p>
                 <p>• <span class="text-gray-400">리포트 전체</span>: https://ko.warcraftlogs.com/reports/aT2hxt1CgB8fPN6p</p>
                 <p>• <span class="text-gray-400">리포트 코드</span>: aT2hxt1CgB8fPN6p</p>
             </div>
