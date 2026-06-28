@@ -768,16 +768,38 @@ REPORT_HTML_TEMPLATE = """
                 </p>
                 <details class="group border-t border-gray-800/60 pt-3 mt-2">
                     <summary class="flex items-center justify-between cursor-pointer list-none text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors py-1 pl-1">
-                        <span>🔍 자세한 점수 산정 방식</span>
+                        <span>🔍 자세한 점수 및 컨디션 산정 방식</span>
                         <span class="transition-transform duration-200 group-open:rotate-180">▼</span>
                     </summary>
-                    <p class="mt-3 bg-gray-900/80 p-4 rounded-lg border border-gray-800 text-xs leading-relaxed text-gray-300 space-y-1.5">
-                        • <span class="text-rose-300 font-semibold">첫 번째 사망</span>: 회당 -5점 직접 차감 + (개인 첫 사망 / 총 트라이) × 40점 차감<br>
-                        • <span class="text-orange-300 font-semibold">두 번째 / 세 번째 사망</span>: 회당 -3점 / -1.5점 직접 차감 + 지분율에 따른 추가 차감<br>
-                        • <span class="text-amber-300 font-semibold">단독 사망</span>: 회당 -4점 직접 차감 + (단독 사망 / 총 트라이) × 30점 차감<br>
-                        • <span class="text-purple-300 font-semibold">Active.avg 손실률</span>: (1.0 - Active.avg) × 100점 차감<br>
-                        • <span class="text-emerald-300 font-semibold">생존 가산점</span>: (생존 트라이 / 총 트라이) × 5점 가산점 부여
-                    </p>
+                    <div class="mt-3 bg-gray-900/80 p-4 rounded-lg border border-gray-800 text-xs leading-relaxed text-gray-300 space-y-4">
+                        <div>
+                            <div class="font-bold text-amber-300 mb-1.5 flex items-center gap-1">🛡️ 생존 점수 산정 방식 (기본 점수 100점 만점)</div>
+                            <div class="space-y-1.5 pl-1">
+                                • <span class="text-rose-300 font-semibold">첫 번째 사망</span>: 회당 -5점 직접 차감 + (개인 첫 사망 / 총 트라이) × 40점 차감<br>
+                                • <span class="text-orange-300 font-semibold">두 번째 / 세 번째 사망</span>: 회당 -3점 / -1.5점 직접 차감 + 지분율에 따른 추가 차감<br>
+                                • <span class="text-amber-300 font-semibold">단독 사망</span>: 회당 -4점 직접 차감 + (단독 사망 / 총 트라이) × 30점 차감<br>
+                                • <span class="text-purple-300 font-semibold">Active.avg 손실률</span>: (1.0 - Active.avg) × 100점 차감<br>
+                                • <span class="text-emerald-300 font-semibold">생존 가산점</span>: (생존 트라이 / 총 트라이) × 5점 가산점 부여
+                            </div>
+                        </div>
+                        <div class="border-t border-gray-800/80 pt-3">
+                            <div class="font-bold text-indigo-400 mb-1.5 flex items-center gap-1">📈 최근 컨디션 지표 산정 방식</div>
+                            <div class="space-y-2.5 pl-1 text-gray-400">
+                                <p class="text-[11px] leading-relaxed">
+                                    최근 트라이 범위(3/5/7/10회) 내에서 발생한 사망 빈도와 시점을 종합 분석하여 컨디션을 평가합니다. 단순히 최근 흐름만 보는 통계 왜곡을 방지하기 위해 <b>사망 횟수가 많은 플레이어가 항상 더 높은 감점(낮은 등급)을 받도록 우선 정렬</b>한 후, <b>동일한 사망 횟수 내에서만 시간 가중치에 따라 점수를 미세 조정</b>합니다.
+                                </p>
+                                <ul class="space-y-1.5 pl-2 text-[11px] list-disc list-inside">
+                                    <li><span class="text-gray-300 font-semibold">실책 빈도 비례 감점</span>: 선택한 최근 트라이 범위 내에서 사망 횟수가 많을수록 페널티가 누적되어 가중됩니다.</li>
+                                    <li><span class="text-gray-300 font-semibold">시간 가중치 보정 (최대 40% 편차)</span>: 동일한 사망 횟수일 경우, 최근 트라이에 사망했을수록 집중력 저하 상태로 보아 감점이 강화되며, 과거 트라이에 사망하고 최근에 생존을 유지하고 있다면 감점이 완화됩니다.</li>
+                                    <li><span class="text-emerald-400 font-semibold">🌟 최상 (Perfect)</span>: 선택 범위 내 사망이 0회이며, 전체 유효 사망률도 5% 미만인 에이스 상태.</li>
+                                    <li><span class="text-sky-400 font-semibold">📈 상승 (+N%)</span>: 선택 범위 내 사망은 0회이나, 과거에 사망 이력이 있어 최근 생존력을 완전 회복한 상태 (과거 사망률 N% 표시).</li>
+                                    <li><span class="text-amber-400 font-semibold">⚡ 주의</span>: 경미한 실책 경향성 보유 (최종 페널티 7점 미만).</li>
+                                    <li><span class="text-orange-400 font-semibold">⚠️ 심각</span>: 잦은 실책 또는 최근 트라이 연속 사망 발생 (최종 페널티 7점 이상 ~ 14점 미만).</li>
+                                    <li><span class="text-rose-400 font-semibold">💀 트롤</span>: 매우 높은 사망 빈도 및 지속적인 집중력 저하 상태 (최종 페널티 14점 이상).</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </details>
             </div>
         </div>
