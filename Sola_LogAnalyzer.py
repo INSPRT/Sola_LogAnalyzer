@@ -13,7 +13,7 @@ CLASS_INFO = {
     "DeathKnight": {"kr": "죽음의 기사", "color": "#C41E3A", "class": "text-[#C41E3A]"},
     "DemonHunter": {"kr": "악마사냥꾼", "color": "#A330C9", "class": "text-[#A330C9]"},
     "Druid": {"kr": "드루이드", "color": "#FF7C0A", "class": "text-[#FF7C0A]"},
-    "Evoker": {"kr": "기원사", "color": "#33937F", "class": "text-[#3FC7EB]"},
+    "Evoker": {"kr": "기원사", "color": "#33937F", "class": "text-[#33937F]"},
     "Hunter": {"kr": "사냥꾼", "color": "#AAD372", "class": "text-[#AAD372]"},
     "Mage": {"kr": "마법사", "color": "#3FC7EB", "class": "text-[#3FC7EB]"},
     "Monk": {"kr": "수도사", "color": "#00FF98", "class": "text-[#00FF98]"},
@@ -57,9 +57,9 @@ def parse_wcl_url(raw_url):
 
 def calculate_robust_slope(y_values):
     """
-    [WEFT 3.0 (Weighted Error Frequency & Recency Trend 3.0)]
+    [WEFT 4.0 (Weighted Error Frequency & Recency Trend 4.0)]
     공대장의 핵심 철학 및 합리성 완벽 반영:
-    1. 사망 횟수(실책 빈도)가 많은 사람은 그 어떤 추세 보정이 있더라도 사망 횟수가 적은 사람보다 무조건 점수가 낮아야 한다 (역전 불가 원칙).
+    1. 사망 횟수(실책 빈도)가 많은 사람은 그 어떤 추세 보정이 있더라도 사망 횟수가 적은 시점보다 무조건 점수가 낮아야 한다 (역전 불가 원칙).
     2. 선형 회귀의 왜곡(2번 죽고 2번 살았다고 우상향 추세라며 페널티를 대폭 깎아주는 현상)을 완전 제거.
     3. 사망 시점(과거 vs 최근)은 동일 사망 횟수 내에서만 작용하는 보조 가중치(최대 40% 스윙)로 작동.
     """
@@ -94,17 +94,32 @@ def calculate_robust_slope(y_values):
     
     return -final_penalty
 
-def get_condition_info(y_values):
+def get_condition_info(y_values, valid_death_rate=0.0):
+    """
+    [WEFT 4.0 상대적 베이스라인 보정 및 직관적 티어제]
+    - 완벽 생존자(0회 사망)의 경우 과거 트라이 이력을 비교하여 진성 에이스(Perfect)와 극복 각성자(+N%)로 스마트 분기
+    - 사망자의 경우 음수 수치에 따라 트롤💀, 심각⚠️, 주의⚡ 3단계로 직관적 분류
+    """
     slope = calculate_robust_slope(y_values)
     if slope is None:
         return {"badge": "⚠️", "text": "데이터<br>부족", "class": "bg-gray-500/20 text-gray-400 border-gray-500/30", "order": 0}
     
-    if slope >= 0.3:
-        return {"badge": "📈", "text": f"생존<br>+{slope:.1f}%", "class": "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", "order": 3}
-    elif slope <= -0.3:
-        return {"badge": "📉", "text": f"생존<br>{slope:.1f}%", "class": "bg-rose-500/20 text-rose-400 border-rose-500/30 font-bold", "order": 1}
+    # 1. 최근 M회 중 단 한 번도 사망하지 않은 완벽 생존자 (slope == 0.0)
+    if slope == 0.0:
+        if valid_death_rate < 5.0:
+            # 전체 트라이에서도 사망률 5% 미만인 순수 에이스
+            return {"badge": "🌟", "text": "최상<br>Perfect", "class": "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-extrabold", "order": 5}
+        else:
+            # 과거에 사망 이력이 있으나 최근 완벽하게 극복한 각성자
+            return {"badge": "📈", "text": f"상승<br>+{valid_death_rate:.1f}%", "class": "bg-sky-500/20 text-sky-400 border-sky-500/30 font-bold", "order": 4}
+            
+    # 2. 최근 M회 중 사망자가 발생한 경우 (slope < 0.0)
+    if slope <= -14.0:
+        return {"badge": "💀", "text": f"트롤<br>{slope:.1f}%", "class": "bg-rose-500/20 text-rose-400 border-rose-500/30 font-extrabold animate-pulse", "order": 1}
+    elif slope <= -7.0:
+        return {"badge": "⚠️", "text": f"심각<br>{slope:.1f}%", "class": "bg-orange-500/20 text-orange-400 border-orange-500/30 font-bold", "order": 2}
     else:
-        return {"badge": "➖", "text": f"생존<br>{slope:+.1f}%", "class": "bg-sky-500/20 text-sky-400 border-sky-500/30", "order": 2}
+        return {"badge": "⚡", "text": f"주의<br>{slope:.1f}%", "class": "bg-amber-500/20 text-amber-400 border-amber-500/30 font-semibold", "order": 3}
 
 def build_tooltip_html(details_list, count):
     if not details_list or len(details_list) < count:
@@ -144,7 +159,7 @@ def build_tooltip_html(details_list, count):
     <div class="condition-tooltip absolute bottom-full right-0 mb-2 hidden group-hover:block group-[.pinned]:block w-72 p-4 bg-gray-900/98 border border-gray-700 rounded-2xl shadow-2xl backdrop-blur-xl text-left text-xs z-50 transition-all duration-200 text-gray-200 space-y-2.5">
         <div class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-rose-300 border-b border-gray-700 pb-1.5 flex items-center justify-between">
             <span>📋 최근 {count}회 사망/생존 분석</span>
-            <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">WEFT 3.0</span>
+            <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">WEFT 4.0</span>
         </div>
         <div class="space-y-1.5 max-h-64 overflow-y-auto pr-1">
             {items_html}
@@ -181,7 +196,7 @@ def get_parsed_data(report_code, boss_param=None):
     report = raw_data.get("data", {}).get("reportData", {}).get("report")
     if not report: 
         print(f"[오류] GraphQL API 에러 응답: {raw_data}")
-        return {"error": "리포트 데이터를 찾을 수 백 없습니다. 코드를 확인해 주세요."}
+        return {"error": "리포트 데이터를 찾을 수 없습니다. 코드를 확인해 주세요."}
 
     report_title = report.get("title", "Warcraft Logs 리포트")
     raw_fights = report.get("fights", [])
@@ -320,7 +335,7 @@ def get_parsed_data(report_code, boss_param=None):
             neighbors = [other_p for other_idx, (other_p, other_t, _) in enumerate(valid_deaths) if other_idx != idx and abs(other_t - t_death) <= 5000]
             if not neighbors:
                 stats[p_name]["solo_blunders"] += 1
-                death_label += " 💀단독책임"
+                death_label += " 💀단독사망"
 
             stats[p_name]["fight_details"].append({
                 "fight_num": f_idx,
@@ -369,12 +384,6 @@ def get_parsed_data(report_code, boss_param=None):
         raw_score = 100.0 - first_penalty - second_penalty - third_penalty - solo_penalty - time_penalty + bonus
         score = max(0.0, min(100.0, raw_score))
 
-        if score >= 90: tier, tier_class = "S", "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-        elif score >= 80: tier, tier_class = "A", "bg-sky-500/20 text-sky-400 border-sky-500/30"
-        elif score >= 65: tier, tier_class = "B", "bg-amber-500/20 text-amber-400 border-amber-500/30"
-        elif score >= 50: tier, tier_class = "C", "bg-orange-500/20 text-orange-400 border-orange-500/30"
-        else: tier, tier_class = "☠️", "bg-rose-500/20 text-rose-400 border-rose-500/30 animate-pulse font-extrabold"
-
         p_class_norm = data["class"].replace(" ", "")
         c_info = CLASS_INFO.get(p_class_norm, {"kr": data["class"], "color": "#FFFFFF", "class": "text-white"})
 
@@ -386,11 +395,15 @@ def get_parsed_data(report_code, boss_param=None):
         eff_rates = data["effective_rates"]
         fight_details = data["fight_details"]
 
-        # 공대장 요청 반영: 분석 범위 10/5/3 -> 7/5/3 변경 (기본값 7)
-        cond_recent7 = get_condition_info(eff_rates[-7:]) if len(eff_rates) >= 7 else {"badge": "⚠️", "text": "최소 7회<br>필요", "class": "bg-gray-500/20 text-gray-400 border-gray-500/30", "order": 0}
-        cond_recent5 = get_condition_info(eff_rates[-5:]) if len(eff_rates) >= 5 else {"badge": "⚠️", "text": "최소 5회<br>필요", "class": "bg-gray-500/20 text-gray-400 border-gray-500/30", "order": 0}
-        cond_recent3 = get_condition_info(eff_rates[-3:]) if len(eff_rates) >= 3 else {"badge": "⚠️", "text": "최소 3회<br>필요", "class": "bg-gray-500/20 text-gray-400 border-gray-500/30", "order": 0}
+        valid_death_rate = (data["valid_deaths"] / total_fights) * 100.0 if total_fights > 0 else 0.0
 
+        # 공대장 요청 반영: 분석 범위 10/7(기본)/5/3회 선택지 제공, WEFT 4.0 적용
+        cond_recent10 = get_condition_info(eff_rates[-10:], valid_death_rate) if len(eff_rates) >= 10 else {"badge": "⚠️", "text": "최소 10회<br>필요", "class": "bg-gray-500/20 text-gray-400 border-gray-500/30", "order": 0}
+        cond_recent7 = get_condition_info(eff_rates[-7:], valid_death_rate) if len(eff_rates) >= 7 else {"badge": "⚠️", "text": "최소 7회<br>필요", "class": "bg-gray-500/20 text-gray-400 border-gray-500/30", "order": 0}
+        cond_recent5 = get_condition_info(eff_rates[-5:], valid_death_rate) if len(eff_rates) >= 5 else {"badge": "⚠️", "text": "최소 5회<br>필요", "class": "bg-gray-500/20 text-gray-400 border-gray-500/30", "order": 0}
+        cond_recent3 = get_condition_info(eff_rates[-3:], valid_death_rate) if len(eff_rates) >= 3 else {"badge": "⚠️", "text": "최소 3회<br>필요", "class": "bg-gray-500/20 text-gray-400 border-gray-500/30", "order": 0}
+
+        tooltip_recent10 = build_tooltip_html(fight_details, 10)
         tooltip_recent7 = build_tooltip_html(fight_details, 7)
         tooltip_recent5 = build_tooltip_html(fight_details, 5)
         tooltip_recent3 = build_tooltip_html(fight_details, 3)
@@ -410,11 +423,11 @@ def get_parsed_data(report_code, boss_param=None):
             "avg_time": f"{avg_time:.1f}초", 
             "avg_time_num": round(avg_time, 1), 
             "score": round(score, 1),
-            "tier": tier,
-            "tier_class": tier_class,
+            "condition_recent10": cond_recent10,
             "condition_recent7": cond_recent7,
             "condition_recent5": cond_recent5,
             "condition_recent3": cond_recent3,
+            "tooltip_recent10": tooltip_recent10,
             "tooltip_recent7": tooltip_recent7,
             "tooltip_recent5": tooltip_recent5,
             "tooltip_recent3": tooltip_recent3
@@ -510,14 +523,6 @@ LANDING_HTML_TEMPLATE = """
                 <div id="progressBar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500 h-full rounded-full transition-all duration-300 ease-out" style="width: 0%;"></div>
             </div>
             <div id="progressText" class="text-sm font-bold text-gray-400 font-outfit">0%</div>
-
-            <div class="mt-10 bg-gray-950/40 border border-gray-800/80 rounded-2xl p-5 text-left text-xs text-gray-400 space-y-2">
-                <div class="font-bold text-indigo-400 flex items-center gap-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    스마트 전멸 필터 안내
-                </div>
-                <p>레이드 특성상 3명이 죽거나 단시간 연쇄 급사가 발생하면 공략이 불가능한 상태가 됩니다. 본 분석기는 해당 시점을 전멸로 확정하고, 이후 사망자는 통계에서 제외하여 <b>공대를 터뜨린 진짜 범인</b>만을 추적합니다.</p>
-            </div>
         </div>
     </div>
 
@@ -642,10 +647,16 @@ REPORT_HTML_TEMPLATE = """
         .dataTables_wrapper .dataTables_filter input { background-color: #1f2937 !important; color: white !important; border: 1px solid #374151 !important; padding: 6px 12px; border-radius: 6px; outline: none; margin-left: 8px; transition: border-color 0.2s; }
         .dataTables_wrapper .dataTables_filter input:focus { border-color: #6366f1 !important; }
         table.dataTable { border-collapse: collapse !important; border-bottom: none !important; }
-        table.dataTable thead th { border-bottom: 1px solid #374151 !important; font-weight: 600; color: #a5b4fc; padding: 12px 16px; }
+        table.dataTable thead th { border-bottom: 1px solid #374151 !important; font-weight: 600; color: #a5b4fc; padding: 12px 16px; transition: background-color 0.2s; }
         table.dataTable tbody tr { background-color: #111827 !important; color: #e5e7eb !important; transition: all 0.2s ease; }
         table.dataTable tbody tr:hover { background-color: #1f2937 !important; transform: scale(1.002); }
         table.dataTable tbody td { border-bottom: 1px solid #1f2937 !important; padding: 14px 16px; }
+        
+        /* ⭐ 정렬된 열(Column) 하이라이트 커스텀 스타일 (고급 인디고 틴트) */
+        table.dataTable tbody td.sorting_1 { background-color: #1e1b4b !important; font-weight: 600; }
+        table.dataTable tbody tr:hover td.sorting_1 { background-color: #312e81 !important; }
+        table.dataTable thead th.sorting_asc, table.dataTable thead th.sorting_desc { background-color: #312e81 !important; color: #c7d2fe !important; }
+
         .dataTables_wrapper .dataTables_paginate .paginate_button { color: #e5e7eb !important; background: #1f2937 !important; border: 1px solid #374151 !important; border-radius: 6px; padding: 6px 12px; margin: 0 4px; }
         .dataTables_wrapper .dataTables_paginate .paginate_button.current { background: #6366f1 !important; color: white !important; border-color: #6366f1 !important; }
         .dataTables_wrapper .dataTables_paginate .paginate_button:hover { background: #4f46e5 !important; color: white !important; border-color: #4f46e5 !important; }
@@ -725,7 +736,7 @@ REPORT_HTML_TEMPLATE = """
             <div class="bg-cardbg border border-amber-500/20 rounded-2xl p-6 shadow-xl backdrop-blur-xl hover:border-amber-500/40 transition-all group flex flex-col justify-between h-full">
                 <div>
                     <div class="flex items-center justify-between mb-3">
-                        <span class="text-amber-400 font-semibold text-sm">🛑 최다 단독 책임 사망</span>
+                        <span class="text-amber-400 font-semibold text-sm">🛑 최다 단독 사망</span>
                         <span class="p-2 bg-amber-500/10 text-amber-400 rounded-lg group-hover:scale-110 transition-transform">💀</span>
                     </div>
                     <div class="text-4xl font-extrabold font-outfit {{ data.most_solo_blunders.class_color_class }}">{{ data.most_solo_blunders.name }}</div>
@@ -740,17 +751,10 @@ REPORT_HTML_TEMPLATE = """
                 <div class="space-y-2 text-sm text-gray-300">
                     <div class="font-bold text-indigo-400 flex items-center gap-2 text-base">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        데이터 분석 기준 및 생존 등급 안내
+                        데이터 분석 기준 안내
                     </div>
                     <p>• <b>데이터 분석의 근거</b>: 3번째 사망자 발생 이후 시점은 무시되며, 10초 내로 현재 생존자의 50% 이상이 사망한다면 해당 이벤트 발생 시점의 첫 번째 사망자 이전의 데이터만 유효하게 간주합니다.</p>
-                    <p>• <b>단독 책임 사망</b>: 사망 전후 5초 이내에 다른 공대원의 사망이 없는 '순수 개인 실수' 지표입니다.</p>
-                </div>
-                <div class="flex flex-wrap gap-2 text-xs font-semibold shrink-0">
-                    <span class="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">S: 90점↑ (철벽생존)</span>
-                    <span class="px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">A: 80점↑ (1인분 확실)</span>
-                    <span class="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">B: 65점↑ (평범·주의)</span>
-                    <span class="px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30">C: 50점↑ (위험군)</span>
-                    <span class="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 font-extrabold">F: 50점↓ 트롤러☠️</span>
+                    <p>• <b>단독 사망</b>: 사망 전후 5초 이내에 다른 공대원의 사망이 없는 '순수 개인 실수' 지표입니다.</p>
                 </div>
             </div>
             
@@ -770,8 +774,8 @@ REPORT_HTML_TEMPLATE = """
                     <p class="mt-3 bg-gray-900/80 p-4 rounded-lg border border-gray-800 text-xs leading-relaxed text-gray-300 space-y-1.5">
                         • <span class="text-rose-300 font-semibold">첫 번째 사망</span>: 회당 -5점 직접 차감 + (개인 첫 사망 / 총 트라이) × 40점 차감<br>
                         • <span class="text-orange-300 font-semibold">두 번째 / 세 번째 사망</span>: 회당 -3점 / -1.5점 직접 차감 + 지분율에 따른 추가 차감<br>
-                        • <span class="text-amber-300 font-semibold">단독 책임 사망</span>: 회당 -4점 직접 차감 + (단독 책임 사망 / 총 트라이) × 30점 차감<br>
-                        • <span class="text-purple-300 font-semibold">생존 시간 손실률</span>: (1.0 - 생존 시간 비율) × 100점 차감<br>
+                        • <span class="text-amber-300 font-semibold">단독 사망</span>: 회당 -4점 직접 차감 + (단독 사망 / 총 트라이) × 30점 차감<br>
+                        • <span class="text-purple-300 font-semibold">Active.avg 손실률</span>: (1.0 - Active.avg) × 100점 차감<br>
                         • <span class="text-emerald-300 font-semibold">생존 가산점</span>: (생존 트라이 / 총 트라이) × 5점 가산점 부여
                     </p>
                 </details>
@@ -793,7 +797,9 @@ REPORT_HTML_TEMPLATE = """
                         <span>데이터 갱신</span>
                     </button>
 
+                    <!-- ⭐ 10/7(기본)/5/3회 선택지 -->
                     <div class="inline-flex rounded-lg p-1 bg-gray-950 border border-gray-800 gap-1">
+                        <button onclick="switchCondition('recent10', this)" class="condition-btn px-4 py-1.5 rounded-md bg-transparent text-gray-400 hover:text-white font-semibold text-xs transition-all">최근 10회</button>
                         <button onclick="switchCondition('recent7', this)" class="condition-btn px-4 py-1.5 rounded-md bg-indigo-600 text-white font-bold text-xs shadow transition-all">최근 7회 (기본)</button>
                         <button onclick="switchCondition('recent5', this)" class="condition-btn px-4 py-1.5 rounded-md bg-transparent text-gray-400 hover:text-white font-semibold text-xs transition-all">최근 5회</button>
                         <button onclick="switchCondition('recent3', this)" class="condition-btn px-4 py-1.5 rounded-md bg-transparent text-gray-400 hover:text-white font-semibold text-xs transition-all">최근 3회</button>
@@ -816,12 +822,11 @@ REPORT_HTML_TEMPLATE = """
                         <th>첫 번째 사망</th>
                         <th>두 번째 사망</th>
                         <th>세 번째 사망</th>
-                        <th>단독 책임 사망</th>
+                        <th>단독 사망</th>
                         <th>초반 2인 이내 사망률</th>
-                        <th>생존 시간 비율</th>
+                        <th>Active.avg</th>
                         <th>평균 생존 시간</th>
                         <th class="text-right">⭐ 생존 점수</th>
-                        <th class="text-center">생존 등급</th>
                         <th class="rounded-r-lg text-center">최근 컨디션</th>
                     </tr>
                 </thead>
@@ -841,19 +846,18 @@ REPORT_HTML_TEMPLATE = """
                         <td class="text-right font-black text-lg font-outfit {% if p.score >= 90 %}text-emerald-400{% elif p.score >= 80 %}text-sky-400{% elif p.score >= 65 %}text-amber-400{% elif p.score >= 50 %}text-orange-400{% else %}text-rose-500{% endif %}" data-order="{{ p.score }}">
                             {{ p.score }}점
                         </td>
-                        <td class="text-center" data-order="{{ p.score }}">
-                            <span class="inline-block px-3 py-1 rounded-full text-xs font-bold border {{ p.tier_class }}">
-                                {{ p.tier }}
-                            </span>
-                        </td>
                         <td class="condition-col text-center" data-order="{{ p.condition_recent7.order }}">
-                            <span class="condition-badge inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl text-xs font-semibold border {{ p.condition_recent7.class }} relative group cursor-pointer"
+                            <!-- ⭐ 툴팁 깜빡임 상속 방지를 위해 정적 부모 컨테이너(condition-wrapper) 분리 -->
+                            <div class="condition-wrapper relative inline-block group cursor-pointer"
+                                  data-recent10-badge="{{ p.condition_recent10.badge }}" data-recent10-text="{{ p.condition_recent10.text }}" data-recent10-class="{{ p.condition_recent10.class }}" data-recent10-order="{{ p.condition_recent10.order }}" data-recent10-tooltip="{{ p.tooltip_recent10 | escape }}"
                                   data-recent7-badge="{{ p.condition_recent7.badge }}" data-recent7-text="{{ p.condition_recent7.text }}" data-recent7-class="{{ p.condition_recent7.class }}" data-recent7-order="{{ p.condition_recent7.order }}" data-recent7-tooltip="{{ p.tooltip_recent7 | escape }}"
                                   data-recent5-badge="{{ p.condition_recent5.badge }}" data-recent5-text="{{ p.condition_recent5.text }}" data-recent5-class="{{ p.condition_recent5.class }}" data-recent5-order="{{ p.condition_recent5.order }}" data-recent5-tooltip="{{ p.tooltip_recent5 | escape }}"
                                   data-recent3-badge="{{ p.condition_recent3.badge }}" data-recent3-text="{{ p.condition_recent3.text }}" data-recent3-class="{{ p.condition_recent3.class }}" data-recent3-order="{{ p.condition_recent3.order }}" data-recent3-tooltip="{{ p.tooltip_recent3 | escape }}">
-                                <span class="text-base">{{ p.condition_recent7.badge }}</span> <span class="text-center leading-tight">{{ p.condition_recent7.text | safe }}</span>
+                                <span class="condition-badge inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl text-xs font-semibold border {{ p.condition_recent7.class }}">
+                                    <span class="text-base">{{ p.condition_recent7.badge }}</span> <span class="text-center leading-tight">{{ p.condition_recent7.text | safe }}</span>
+                                </span>
                                 {{ p.tooltip_recent7 | safe }}
-                            </span>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -887,17 +891,17 @@ REPORT_HTML_TEMPLATE = """
 
             // 툴팁 고정(Pin) 토글 및 외부 클릭 시 닫기 기능
             $(document).on('click', function(e) {
-                var badge = $(e.target).closest('.condition-badge');
-                if (badge.length > 0) {
+                var wrapper = $(e.target).closest('.condition-wrapper');
+                if (wrapper.length > 0) {
                     if ($(e.target).closest('.condition-tooltip').length > 0) {
                         return; // 툴팁 내부 클릭 시 닫히지 않도록 보호
                     }
                     // 다른 열린 툴팁은 닫고 현재 클릭한 뱃지만 토글
-                    $('.condition-badge').not(badge).removeClass('pinned');
-                    badge.toggleClass('pinned');
+                    $('.condition-wrapper').not(wrapper).removeClass('pinned');
+                    wrapper.toggleClass('pinned');
                 } else {
                     // 빈 공간(외부) 클릭 시 모든 툴팁 즉시 닫기
-                    $('.condition-badge').removeClass('pinned');
+                    $('.condition-wrapper').removeClass('pinned');
                 }
             });
         });
@@ -908,7 +912,7 @@ REPORT_HTML_TEMPLATE = """
 
             var table = $('#survivalTable').DataTable();
             
-            $('.condition-badge').each(function() {
+            $('.condition-wrapper').each(function() {
                 var badgeText = $(this).attr('data-' + mode + '-badge');
                 var descText = $(this).attr('data-' + mode + '-text');
                 var className = $(this).attr('data-' + mode + '-class');
@@ -918,8 +922,10 @@ REPORT_HTML_TEMPLATE = """
                 // 기존 고정(pinned) 상태 유지
                 var isPinned = $(this).hasClass('pinned') ? ' pinned' : '';
 
-                $(this).attr('class', 'condition-badge inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl text-xs font-semibold border ' + className + ' relative group cursor-pointer' + isPinned);
-                $(this).html('<span class="text-base">' + badgeText + '</span> <span class="text-center leading-tight">' + descText + '</span>' + tooltipHtml);
+                var badgeHtml = '<span class="condition-badge inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl text-xs font-semibold border ' + className + '"><span class="text-base">' + badgeText + '</span> <span class="text-center leading-tight">' + descText + '</span></span>';
+
+                $(this).attr('class', 'condition-wrapper relative inline-block group cursor-pointer' + isPinned);
+                $(this).html(badgeHtml + tooltipHtml);
                 
                 $(this).closest('td').attr('data-order', orderVal);
             });
